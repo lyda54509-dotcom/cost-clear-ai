@@ -8,7 +8,7 @@ export const Route = createFileRoute("/")({
       { title: "ProfitTrack — AI Profit Analyzer for Food Businesses" },
       { name: "description", content: "Track daily sales vs cost, reconcile M-Pesa receipts, and get AI-powered profit insights for your restaurant, kiosk or food stall." },
       { property: "og:title", content: "ProfitTrack — AI Profit Analyzer for Food Businesses" },
-      { property: "og:description", content: "Daily sales, cost, and profit tracking with AI insights and automated reports." },
+      { property: "og:description", content: "Track daily sales vs cost, reconcile M-Pesa receipts, and get AI-powered profit insights for your restaurant, kiosk or food stall." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
