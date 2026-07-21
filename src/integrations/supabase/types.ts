@@ -14,16 +14,316 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      business_members: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_members_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      businesses: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          updated_at: string
+          webhook_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Relationships: []
+      }
+      expenses: {
+        Row: {
+          amount: number
+          business_id: string
+          category: string
+          created_at: string
+          created_by: string | null
+          expense_date: string
+          id: string
+          is_recurring: boolean
+          notes: string | null
+        }
+        Insert: {
+          amount: number
+          business_id: string
+          category: string
+          created_at?: string
+          created_by?: string | null
+          expense_date?: string
+          id?: string
+          is_recurring?: boolean
+          notes?: string | null
+        }
+        Update: {
+          amount?: number
+          business_id?: string
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          expense_date?: string
+          id?: string
+          is_recurring?: boolean
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      reports: {
+        Row: {
+          ai_summary: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          gross_profit: number
+          id: string
+          net_profit: number
+          period_end: string
+          period_start: string
+          period_type: Database["public"]["Enums"]["report_period"]
+          sent_at: string | null
+          top_items: Json | null
+          total_cogs: number
+          total_expenses: number
+          total_revenue: number
+        }
+        Insert: {
+          ai_summary?: string | null
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          gross_profit?: number
+          id?: string
+          net_profit?: number
+          period_end: string
+          period_start: string
+          period_type: Database["public"]["Enums"]["report_period"]
+          sent_at?: string | null
+          top_items?: Json | null
+          total_cogs?: number
+          total_expenses?: number
+          total_revenue?: number
+        }
+        Update: {
+          ai_summary?: string | null
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          gross_profit?: number
+          id?: string
+          net_profit?: number
+          period_end?: string
+          period_start?: string
+          period_type?: Database["public"]["Enums"]["report_period"]
+          sent_at?: string | null
+          top_items?: Json | null
+          total_cogs?: number
+          total_expenses?: number
+          total_revenue?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_entries: {
+        Row: {
+          business_id: string
+          buying_price: number
+          created_at: string
+          entered_by: string | null
+          entry_date: string
+          id: string
+          item_name: string
+          quantity: number
+          selling_price: number
+        }
+        Insert: {
+          business_id: string
+          buying_price: number
+          created_at?: string
+          entered_by?: string | null
+          entry_date?: string
+          id?: string
+          item_name: string
+          quantity: number
+          selling_price: number
+        }
+        Update: {
+          business_id?: string
+          buying_price?: number
+          created_at?: string
+          entered_by?: string | null
+          entry_date?: string
+          id?: string
+          item_name?: string
+          quantity?: number
+          selling_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_entries_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      uploads: {
+        Row: {
+          business_id: string
+          created_at: string
+          extracted_data: Json | null
+          file_name: string | null
+          file_path: string
+          id: string
+          mime_type: string | null
+          reconciliation_note: string | null
+          reconciliation_status: string | null
+          upload_date: string
+          upload_type: Database["public"]["Enums"]["upload_type"]
+          uploaded_by: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          extracted_data?: Json | null
+          file_name?: string | null
+          file_path: string
+          id?: string
+          mime_type?: string | null
+          reconciliation_note?: string | null
+          reconciliation_status?: string | null
+          upload_date?: string
+          upload_type?: Database["public"]["Enums"]["upload_type"]
+          uploaded_by?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          extracted_data?: Json | null
+          file_name?: string | null
+          file_path?: string
+          id?: string
+          mime_type?: string | null
+          reconciliation_note?: string | null
+          reconciliation_status?: string | null
+          upload_date?: string
+          upload_type?: Database["public"]["Enums"]["upload_type"]
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uploads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _business: string
+          _role: Database["public"]["Enums"]["app_role"]
+          _user: string
+        }
+        Returns: boolean
+      }
+      is_admin: { Args: { _business: string; _user: string }; Returns: boolean }
+      is_member: {
+        Args: { _business: string; _user: string }
+        Returns: boolean
+      }
+      my_business_id: { Args: { _user: string }; Returns: string }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "owner" | "manager" | "staff"
+      report_period: "daily" | "monthly" | "annual"
+      upload_type: "receipt" | "mpesa_statement"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +450,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["owner", "manager", "staff"],
+      report_period: ["daily", "monthly", "annual"],
+      upload_type: ["receipt", "mpesa_statement"],
+    },
   },
 } as const
