@@ -105,8 +105,10 @@ export const generateReport = createServerFn({ method: "POST" })
       report_id: inserted.id,
     };
 
-    // POST to n8n webhook (plus any user-configured webhook_url as legacy fallback)
-    const targets = [N8N_WEBHOOK_URL, ...(biz?.webhook_url ? [biz.webhook_url] : [])];
+    // POST to n8n webhook (plus any user-configured webhook_url as legacy fallback).
+    // The user-configured URL is validated to prevent SSRF into internal networks.
+    const safeCustom = biz?.webhook_url && (await isSafePublicHttpsUrl(biz.webhook_url)) ? biz.webhook_url : null;
+    const targets = [N8N_WEBHOOK_URL, ...(safeCustom ? [safeCustom] : [])];
     let webhookStatus: "sent" | "skipped" | "failed" = "skipped";
     for (const url of targets) {
       try {
@@ -114,6 +116,7 @@ export const generateReport = createServerFn({ method: "POST" })
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+          redirect: "error",
         });
         webhookStatus = r.ok ? "sent" : "failed";
         if (r.ok && url === N8N_WEBHOOK_URL) {
@@ -121,6 +124,7 @@ export const generateReport = createServerFn({ method: "POST" })
         }
       } catch { webhookStatus = "failed"; }
     }
+
 
     return { report: inserted, analysis, webhookStatus };
   });
