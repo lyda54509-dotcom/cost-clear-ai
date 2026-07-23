@@ -5,6 +5,54 @@ import { analyzePeriod } from "./ai.functions";
 
 const N8N_WEBHOOK_URL = "https://profittrack-ops.app.n8n.cloud/webhook/profittrack-report";
 
+/**
+ * Validate a user-supplied webhook URL to prevent SSRF:
+ * - must be https
+ * - host must be a public DNS name (not an IP literal, not localhost/*.local)
+ * - resolved addresses must not be private/loopback/link-local/unique-local
+ */
+async function isSafePublicHttpsUrl(raw: string): Promise<boolean> {
+  let u: URL;
+  try { u = new URL(raw); } catch { return false; }
+  if (u.protocol !== "https:") return false;
+  const host = u.hostname.toLowerCase();
+  if (!host || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return false;
+  // Reject IP literals outright — only allow named hosts we can DNS-check.
+  const isIPv4Literal = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+  const isIPv6Literal = host.includes(":") || (host.startsWith("[") && host.endsWith("]"));
+  if (isIPv4Literal || isIPv6Literal) return false;
+  // DNS resolution check via a public resolver (dns.google over https).
+  try {
+    const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(host)}&type=A`, { method: "GET" });
+    if (!res.ok) return false;
+    const j = (await res.json()) as { Answer?: { type: number; data: string }[] };
+    const ips = (j.Answer ?? []).filter((a) => a.type === 1).map((a) => a.data);
+    if (ips.length === 0) return false;
+    for (const ip of ips) {
+      if (isPrivateIPv4(ip)) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isPrivateIPv4(ip: string): boolean {
+  const parts = ip.split(".").map((n) => parseInt(n, 10));
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
+  const [a, b] = parts;
+  if (a === 10) return true;                      // 10.0.0.0/8
+  if (a === 127) return true;                     // loopback
+  if (a === 0) return true;                       // 0.0.0.0/8
+  if (a === 169 && b === 254) return true;        // link-local
+  if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+  if (a === 192 && b === 168) return true;        // 192.168.0.0/16
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+  if (a >= 224) return true;                      // multicast + reserved
+  return false;
+}
+
+
 function periodRange(type: "daily" | "monthly" | "annual", ref: string): { start: string; end: string } {
   const d = new Date(ref + "T00:00:00Z");
   if (type === "daily") return { start: ref, end: ref };
@@ -105,8 +153,10 @@ export const generateReport = createServerFn({ method: "POST" })
       report_id: inserted.id,
     };
 
-    // POST to n8n webhook (plus any user-configured webhook_url as legacy fallback)
-    const targets = [N8N_WEBHOOK_URL, ...(biz?.webhook_url ? [biz.webhook_url] : [])];
+    // POST to n8n webhook (plus any user-configured webhook_url as legacy fallback).
+    // The user-configured URL is validated to prevent SSRF into internal networks.
+    const safeCustom = biz?.webhook_url && (await isSafePublicHttpsUrl(biz.webhook_url)) ? biz.webhook_url : null;
+    const targets = [N8N_WEBHOOK_URL, ...(safeCustom ? [safeCustom] : [])];
     let webhookStatus: "sent" | "skipped" | "failed" = "skipped";
     for (const url of targets) {
       try {
@@ -114,6 +164,7 @@ export const generateReport = createServerFn({ method: "POST" })
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+          redirect: "error",
         });
         webhookStatus = r.ok ? "sent" : "failed";
         if (r.ok && url === N8N_WEBHOOK_URL) {
@@ -121,6 +172,7 @@ export const generateReport = createServerFn({ method: "POST" })
         }
       } catch { webhookStatus = "failed"; }
     }
+
 
     return { report: inserted, analysis, webhookStatus };
   });
