@@ -52,6 +52,8 @@ export type Database = {
           id: string
           name: string
           owner_id: string
+          recipient_email: string | null
+          recipient_whatsapp: string | null
           updated_at: string
           webhook_url: string | null
         }
@@ -60,6 +62,8 @@ export type Database = {
           id?: string
           name: string
           owner_id: string
+          recipient_email?: string | null
+          recipient_whatsapp?: string | null
           updated_at?: string
           webhook_url?: string | null
         }
@@ -68,6 +72,8 @@ export type Database = {
           id?: string
           name?: string
           owner_id?: string
+          recipient_email?: string | null
+          recipient_whatsapp?: string | null
           updated_at?: string
           webhook_url?: string | null
         }
