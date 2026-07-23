@@ -1,0 +1,1 @@
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS recipient_email text, ADD COLUMN IF NOT EXISTS recipient_whatsapp text;

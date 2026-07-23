@@ -23,11 +23,16 @@ function SettingsPage() {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [webhook, setWebhook] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [recipientWhatsapp, setRecipientWhatsapp] = useState("");
 
   useEffect(() => {
     if (ctx?.business) {
       setName(ctx.business.name);
       setWebhook(ctx.business.webhook_url ?? "");
+      const b = ctx.business as unknown as { recipient_email?: string | null; recipient_whatsapp?: string | null };
+      setRecipientEmail(b.recipient_email ?? "");
+      setRecipientWhatsapp(b.recipient_whatsapp ?? "");
     }
   }, [ctx?.business]);
 
@@ -46,7 +51,12 @@ function SettingsPage() {
 
   const saveBiz = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("businesses").update({ name, webhook_url: webhook || null }).eq("id", ctx!.business.id);
+      const { error } = await supabase.from("businesses").update({
+        name,
+        webhook_url: webhook || null,
+        recipient_email: recipientEmail || null,
+        recipient_whatsapp: recipientWhatsapp || null,
+      } as never).eq("id", ctx!.business.id);
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Saved"); qc.invalidateQueries({ queryKey: ["business-context"] }); },
@@ -58,17 +68,27 @@ function SettingsPage() {
       <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-6">Settings</h1>
 
       <Card className="p-6 mb-6">
-        <h2 className="font-semibold mb-4">Business</h2>
+        <h2 className="font-semibold mb-1">Business</h2>
+        <p className="text-xs text-muted-foreground mb-4">Reports are POSTed to the ProfitTrack n8n workflow on every generation. Add recipient details so the workflow can route delivery.</p>
         <div className="grid md:grid-cols-2 gap-4">
           <div><Label>Business name</Label><Input value={name} onChange={(e) => setName(e.target.value)} disabled={!isAdmin} /></div>
           <div>
-            <Label>n8n webhook URL <span className="text-muted-foreground font-normal">(optional)</span></Label>
-            <Input placeholder="https://n8n.example.com/webhook/…" value={webhook} onChange={(e) => setWebhook(e.target.value)} disabled={!isAdmin} />
-            <p className="text-xs text-muted-foreground mt-1">Generated reports will be POSTed here as JSON.</p>
+            <Label>Custom webhook URL <span className="text-muted-foreground font-normal">(optional, legacy)</span></Label>
+            <Input placeholder="https://…" value={webhook} onChange={(e) => setWebhook(e.target.value)} disabled={!isAdmin} />
+            <p className="text-xs text-muted-foreground mt-1">If set, reports are also POSTed here in addition to the n8n workflow.</p>
+          </div>
+          <div>
+            <Label>Recipient email</Label>
+            <Input type="email" placeholder="owner@business.co.ke" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} disabled={!isAdmin} />
+          </div>
+          <div>
+            <Label>Recipient WhatsApp</Label>
+            <Input placeholder="+2547XXXXXXXX" value={recipientWhatsapp} onChange={(e) => setRecipientWhatsapp(e.target.value)} disabled={!isAdmin} />
           </div>
         </div>
         {isAdmin && <Button className="mt-4" onClick={() => saveBiz.mutate()} disabled={saveBiz.isPending}>Save</Button>}
       </Card>
+
 
       <Card className="p-6">
         <h2 className="font-semibold mb-1">Team</h2>

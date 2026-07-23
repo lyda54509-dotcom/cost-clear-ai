@@ -3,6 +3,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { analyzePeriod } from "./ai.functions";
 
+const N8N_WEBHOOK_URL = "https://profittrack-ops.app.n8n.cloud/webhook/profittrack-report";
+
 function periodRange(type: "daily" | "monthly" | "annual", ref: string): { start: string; end: string } {
   const d = new Date(ref + "T00:00:00Z");
   if (type === "daily") return { start: ref, end: ref };
@@ -13,6 +15,8 @@ function periodRange(type: "daily" | "monthly" | "annual", ref: string): { start
   }
   return { start: `${d.getUTCFullYear()}-01-01`, end: `${d.getUTCFullYear()}-12-31` };
 }
+
+type MpesaTx = { ref?: string | null; amount?: number | null; date?: string | null; counterparty?: string | null; description?: string | null; time?: string | null };
 
 export const generateReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -47,27 +51,72 @@ export const generateReport = createServerFn({ method: "POST" })
       .single();
     if (error) throw error;
 
-    // Fire webhook if configured — non-blocking
-    const { data: biz } = await context.supabase.from("businesses").select("webhook_url, name").eq("id", data.businessId).maybeSingle();
+    // Load payload data in parallel
+    const [bizR, salesR, expR, upR] = await Promise.all([
+      context.supabase.from("businesses").select("name, recipient_email, recipient_whatsapp, webhook_url").eq("id", data.businessId).maybeSingle(),
+      context.supabase.from("sales_entries").select("item_name, quantity, buying_price, selling_price, entry_date").eq("business_id", data.businessId).gte("entry_date", start).lte("entry_date", end),
+      context.supabase.from("expenses").select("category, amount, expense_date").eq("business_id", data.businessId).gte("expense_date", start).lte("expense_date", end),
+      context.supabase.from("uploads").select("extracted_data, upload_date, upload_type").eq("business_id", data.businessId).gte("upload_date", start).lte("upload_date", end).eq("upload_type", "mpesa_statement"),
+    ]);
+
+    const biz = bizR.data;
+    const sales = (salesR.data ?? []).map((s) => ({
+      item: s.item_name,
+      quantity: Number(s.quantity),
+      unit_price: Number(s.selling_price),
+      cost_price: Number(s.buying_price),
+      date: s.entry_date,
+    }));
+    const expenses = (expR.data ?? []).map((e) => ({
+      category: e.category,
+      amount: Number(e.amount),
+      date: e.expense_date,
+    }));
+    const mpesa_statement: Array<{ ref: string | null; amount: number; date: string; counterparty: string | null }> = [];
+    for (const u of upR.data ?? []) {
+      const ed = u.extracted_data as { transactions?: MpesaTx[] } | null;
+      const txs = ed?.transactions ?? [];
+      for (const t of txs) {
+        mpesa_statement.push({
+          ref: t.ref ?? null,
+          amount: Number(t.amount) || 0,
+          date: t.date ?? u.upload_date,
+          counterparty: t.counterparty ?? t.description ?? null,
+        });
+      }
+    }
+
+    const payload = {
+      business_id: data.businessId,
+      business_name: biz?.name ?? null,
+      report_type: data.periodType,
+      period_start: start,
+      period_end: end,
+      sales,
+      expenses,
+      mpesa_statement,
+      recipient: {
+        email: biz?.recipient_email ?? null,
+        whatsapp: biz?.recipient_whatsapp ?? null,
+      },
+      metrics: analysis.metrics,
+      top_items: analysis.topItems,
+      ai_summary: analysis.summary,
+      report_id: inserted.id,
+    };
+
+    // POST to n8n webhook (plus any user-configured webhook_url as legacy fallback)
+    const targets = [N8N_WEBHOOK_URL, ...(biz?.webhook_url ? [biz.webhook_url] : [])];
     let webhookStatus: "sent" | "skipped" | "failed" = "skipped";
-    if (biz?.webhook_url) {
+    for (const url of targets) {
       try {
-        const r = await fetch(biz.webhook_url, {
+        const r = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            business: biz.name,
-            report_id: inserted.id,
-            period_type: data.periodType,
-            period_start: start,
-            period_end: end,
-            metrics: analysis.metrics,
-            top_items: analysis.topItems,
-            ai_summary: analysis.summary,
-          }),
+          body: JSON.stringify(payload),
         });
         webhookStatus = r.ok ? "sent" : "failed";
-        if (r.ok) {
+        if (r.ok && url === N8N_WEBHOOK_URL) {
           await context.supabase.from("reports").update({ sent_at: new Date().toISOString() }).eq("id", inserted.id);
         }
       } catch { webhookStatus = "failed"; }
