@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatKES, todayISO } from "@/lib/format";
+import { expenseSchema, firstZodMessage } from "@/lib/validation";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 
