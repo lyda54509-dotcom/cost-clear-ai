@@ -31,6 +31,7 @@ function ExpensesPage() {
   const [date, setDate] = useState(todayISO());
   const [recurring, setRecurring] = useState(false);
   const [notes, setNotes] = useState("");
+  const [fieldError, setFieldError] = useState<string | null>(null);
 
   const list = useQuery({
     queryKey: ["expenses-list", ctx?.business.id],
@@ -44,22 +45,37 @@ function ExpensesPage() {
 
   const add = useMutation({
     mutationFn: async () => {
+      const parsed = expenseSchema.safeParse({
+        category,
+        amount: Number(amount),
+        expense_date: date,
+        notes: notes || undefined,
+      });
+      if (!parsed.success) throw new Error(firstZodMessage(parsed.error));
+      const d = new Date(parsed.data.expense_date + "T00:00:00Z").getTime();
+      if (d > Date.now() + 24 * 3600 * 1000) throw new Error("Date cannot be in the future");
+
       const { data: userData } = await supabase.auth.getUser();
-      if (!amount || Number(amount) <= 0) throw new Error("Enter an amount");
       const { error } = await supabase.from("expenses").insert({
         business_id: ctx!.business.id,
-        category, amount: Number(amount), expense_date: date, is_recurring: recurring, notes: notes || null,
+        category: parsed.data.category,
+        amount: parsed.data.amount,
+        expense_date: parsed.data.expense_date,
+        is_recurring: recurring,
+        notes: parsed.data.notes ?? null,
         created_by: userData.user!.id,
       });
       if (error) throw error;
+      return parsed.data.amount;
     },
-    onSuccess: () => {
-      toast.success("Expense added");
+    onSuccess: (amt) => {
+      setFieldError(null);
+      toast.success("Expense added", { description: `${formatKES(amt)} recorded under ${category}.` });
       setAmount(""); setNotes("");
       qc.invalidateQueries({ queryKey: ["expenses-list"] });
       qc.invalidateQueries({ queryKey: ["expenses"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => { setFieldError(e.message); toast.error(e.message); },
   });
 
   const del = async (id: string) => {
