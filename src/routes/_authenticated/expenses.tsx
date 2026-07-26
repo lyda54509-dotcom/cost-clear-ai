@@ -102,15 +102,16 @@ function ExpensesPage() {
               <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div><Label>Amount (KES)</Label><Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
-          <div><Label>Date</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-          <div><Label>Notes</Label><Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" /></div>
+          <div><Label>Amount (KES)</Label><Input type="number" min="0" step="0.01" value={amount} aria-invalid={!!fieldError} onChange={(e) => { setAmount(e.target.value); if (fieldError) setFieldError(null); }} /></div>
+          <div><Label>Date</Label><Input type="date" max={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} /></div>
+          <div><Label>Notes</Label><Input value={notes} maxLength={500} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" /></div>
           <div className="flex items-center gap-2 pb-2">
             <Switch checked={recurring} onCheckedChange={setRecurring} id="rec" />
             <Label htmlFor="rec" className="cursor-pointer">Recurring</Label>
           </div>
         </div>
-        <div className="mt-4"><Button onClick={() => add.mutate()} disabled={add.isPending}>Add expense</Button></div>
+        {fieldError && <p className="text-xs text-destructive mt-2">{fieldError}</p>}
+        <div className="mt-4"><Button onClick={() => add.mutate()} disabled={add.isPending || !amount}>{add.isPending ? "Saving…" : "Add expense"}</Button></div>
       </Card>
 
       <Card className="p-6">
