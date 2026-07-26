@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatKES, todayISO, formatPct } from "@/lib/format";
+import { saleRowSchema, firstZodMessage } from "@/lib/validation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, AlertCircle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/sales")({
   head: () => ({ meta: [{ title: "Sales entry · ProfitTrack" }, { name: "description", content: "Log items sold with quantity, cost, and selling price." }] }),
@@ -25,6 +26,7 @@ function SalesPage() {
   const qc = useQueryClient();
   const [date, setDate] = useState(todayISO());
   const [rows, setRows] = useState<Row[]>([emptyRow()]);
+  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
   const list = useQuery({
     queryKey: ["sales-today", ctx?.business.id, date],
@@ -41,27 +43,69 @@ function SalesPage() {
     },
   });
 
+  const validateDate = (d: string): string | null => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return "Pick a valid date";
+    const t = new Date(d + "T00:00:00Z").getTime();
+    if (Number.isNaN(t)) return "Pick a valid date";
+    if (t > Date.now() + 24 * 3600 * 1000) return "Date cannot be in the future";
+    return null;
+  };
+
   const insertMut = useMutation({
     mutationFn: async () => {
+      const dateErr = validateDate(date);
+      if (dateErr) throw new Error(dateErr);
+
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user!.id;
-      const valid = rows
-        .map((r) => ({
-          business_id: ctx!.business.id,
-          item_name: r.item_name.trim(),
+
+      // Ignore fully empty rows (item name blank AND no prices) so users can leave a trailing row.
+      const nonEmpty = rows
+        .map((r, idx) => ({ r, idx }))
+        .filter(({ r }) => r.item_name.trim() || r.buying_price || r.selling_price);
+      if (!nonEmpty.length) throw new Error("Add at least one item before saving");
+
+      const errors: Record<number, string> = {};
+      const valid: Array<{
+        business_id: string; item_name: string; quantity: number;
+        buying_price: number; selling_price: number; entry_date: string; entered_by: string;
+      }> = [];
+      for (const { r, idx } of nonEmpty) {
+        const parsed = saleRowSchema.safeParse({
+          item_name: r.item_name,
           quantity: Number(r.quantity),
           buying_price: Number(r.buying_price),
           selling_price: Number(r.selling_price),
+        });
+        if (!parsed.success) {
+          errors[idx] = firstZodMessage(parsed.error);
+          continue;
+        }
+        valid.push({
+          business_id: ctx!.business.id,
+          item_name: parsed.data.item_name,
+          quantity: parsed.data.quantity,
+          buying_price: parsed.data.buying_price,
+          selling_price: parsed.data.selling_price,
           entry_date: date,
           entered_by: uid,
-        }))
-        .filter((r) => r.item_name && r.quantity > 0 && r.selling_price >= 0);
-      if (!valid.length) throw new Error("Add at least one valid item");
+        });
+      }
+      setRowErrors(errors);
+      if (Object.keys(errors).length) {
+        throw new Error(`Fix ${Object.keys(errors).length} row${Object.keys(errors).length > 1 ? "s" : ""} before saving`);
+      }
+
+      const lossRows = valid.filter((v) => v.selling_price < v.buying_price);
       const { error } = await supabase.from("sales_entries").insert(valid);
       if (error) throw error;
+      return { count: valid.length, losses: lossRows.length };
     },
-    onSuccess: () => {
-      toast.success("Sales logged");
+    onSuccess: (r) => {
+      setRowErrors({});
+      toast.success(`${r.count} sale${r.count > 1 ? "s" : ""} logged`, {
+        description: r.losses > 0 ? `${r.losses} item${r.losses > 1 ? "s" : ""} sold below cost — double-check pricing.` : "Profit updated on your dashboard.",
+      });
       setRows([emptyRow()]);
       qc.invalidateQueries({ queryKey: ["sales-today"] });
       qc.invalidateQueries({ queryKey: ["sales"] });
@@ -90,31 +134,48 @@ function SalesPage() {
 
         <div className="space-y-3">
           {rows.map((r, i) => {
-            const profit = (Number(r.selling_price) - Number(r.buying_price)) * Number(r.quantity || 0);
+            const qty = Number(r.quantity || 0);
+            const cost = Number(r.buying_price || 0);
+            const sell = Number(r.selling_price || 0);
+            const profit = (sell - cost) * qty;
+            const belowCost = r.selling_price !== "" && r.buying_price !== "" && sell < cost;
+            const rowErr = rowErrors[i];
+            const update = (patch: Partial<Row>) => {
+              setRows((rs) => rs.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+              if (rowErr) setRowErrors((prev) => { const n = { ...prev }; delete n[i]; return n; });
+            };
             return (
-              <div key={i} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_auto_auto] gap-2 items-end">
-                <div>
-                  {i === 0 && <Label>Item</Label>}
-                  <Input placeholder="Chapati" value={r.item_name} onChange={(e) => setRows((rs) => rs.map((x, j) => j === i ? { ...x, item_name: e.target.value } : x))} />
+              <div key={i} className="space-y-1">
+                <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_auto_auto] gap-2 items-end">
+                  <div>
+                    {i === 0 && <Label>Item</Label>}
+                    <Input placeholder="Chapati" maxLength={60} aria-invalid={!!rowErr} value={r.item_name} onChange={(e) => update({ item_name: e.target.value })} />
+                  </div>
+                  <div>
+                    {i === 0 && <Label>Qty</Label>}
+                    <Input type="number" min="0" step="1" aria-invalid={!!rowErr} value={r.quantity} onChange={(e) => update({ quantity: e.target.value })} />
+                  </div>
+                  <div>
+                    {i === 0 && <Label>Cost (KES)</Label>}
+                    <Input type="number" min="0" step="0.01" aria-invalid={!!rowErr} value={r.buying_price} onChange={(e) => update({ buying_price: e.target.value })} />
+                  </div>
+                  <div>
+                    {i === 0 && <Label>Sell (KES)</Label>}
+                    <Input type="number" min="0" step="0.01" aria-invalid={!!rowErr} value={r.selling_price} onChange={(e) => update({ selling_price: e.target.value })} />
+                  </div>
+                  <div className={`text-sm tabular-nums px-2 pb-2 whitespace-nowrap ${belowCost ? "text-destructive" : profit > 0 ? "text-success" : "text-muted-foreground"}`}>
+                    {isFinite(profit) && qty > 0 ? formatKES(profit) : ""}
+                  </div>
+                  <Button variant="ghost" size="icon" aria-label="Remove row" onClick={() => setRows((rs) => rs.length > 1 ? rs.filter((_, j) => j !== i) : rs)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div>
-                  {i === 0 && <Label>Qty</Label>}
-                  <Input type="number" min="0" step="1" value={r.quantity} onChange={(e) => setRows((rs) => rs.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))} />
-                </div>
-                <div>
-                  {i === 0 && <Label>Cost (KES)</Label>}
-                  <Input type="number" min="0" step="0.01" value={r.buying_price} onChange={(e) => setRows((rs) => rs.map((x, j) => j === i ? { ...x, buying_price: e.target.value } : x))} />
-                </div>
-                <div>
-                  {i === 0 && <Label>Sell (KES)</Label>}
-                  <Input type="number" min="0" step="0.01" value={r.selling_price} onChange={(e) => setRows((rs) => rs.map((x, j) => j === i ? { ...x, selling_price: e.target.value } : x))} />
-                </div>
-                <div className="text-sm tabular-nums text-muted-foreground px-2 pb-2 whitespace-nowrap">
-                  {isFinite(profit) ? formatKES(profit) : ""}
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => setRows((rs) => rs.length > 1 ? rs.filter((_, j) => j !== i) : rs)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {rowErr && (
+                  <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" /> {rowErr}</p>
+                )}
+                {!rowErr && belowCost && (
+                  <p className="text-xs text-warning flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Selling below cost — you'll book a loss on this item.</p>
+                )}
               </div>
             );
           })}

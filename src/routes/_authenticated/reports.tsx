@@ -13,8 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { formatKES, formatPct, todayISO } from "@/lib/format";
 import { generateReport } from "@/lib/reports.functions";
+import { reportInputSchema, firstZodMessage } from "@/lib/validation";
 import { toast } from "sonner";
-import { Sparkles, Send, CheckCircle2 } from "lucide-react";
+import { Sparkles, Send, CheckCircle2, AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({ meta: [{ title: "Reports · ProfitTrack" }, { name: "description", content: "Generate AI-powered daily, monthly, or annual profit reports." }] }),
@@ -39,13 +40,26 @@ function ReportsPage() {
   });
 
   const genMut = useMutation({
-    mutationFn: async () => gen({ data: { businessId: ctx!.business.id, periodType: type, referenceDate: ref } }),
+    mutationFn: async () => {
+      const parsed = reportInputSchema.safeParse({ periodType: type, referenceDate: ref });
+      if (!parsed.success) throw new Error(firstZodMessage(parsed.error));
+      return gen({ data: { businessId: ctx!.business.id, periodType: type, referenceDate: ref } });
+    },
     onSuccess: (r) => {
-      toast.success(r.webhookStatus === "sent" ? "Report generated & sent" : r.webhookStatus === "failed" ? "Report generated (webhook failed)" : "Report generated");
+      const net = r.analysis?.metrics?.net ?? 0;
+      const desc = `Net ${formatKES(net)} · ${formatPct(r.analysis?.metrics?.margin ?? 0)} margin`;
+      if (r.webhookStatus === "sent") toast.success("Report generated & sent", { description: desc });
+      else if (r.webhookStatus === "failed") toast.warning("Report saved, webhook delivery failed", { description: "Check the webhook URL in Settings." });
+      else toast.success("Report generated", { description: desc });
       qc.invalidateQueries({ queryKey: ["reports"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error("Could not generate report", { description: e.message }),
   });
+
+  const refError = (() => {
+    const p = reportInputSchema.safeParse({ periodType: type, referenceDate: ref });
+    return p.success ? null : firstZodMessage(p.error);
+  })();
 
   return (
     <AppShell>
@@ -65,11 +79,16 @@ function ReportsPage() {
               </SelectContent>
             </Select>
           </div>
-          <div><Label>Reference date</Label><Input type="date" value={ref} onChange={(e) => setRef(e.target.value)} /></div>
+          <div>
+            <Label>Reference date</Label>
+            <Input type="date" max={todayISO()} value={ref} aria-invalid={!!refError} onChange={(e) => setRef(e.target.value)} />
+            {refError && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {refError}</p>}
+          </div>
           <div className="md:col-span-2">
-            <Button onClick={() => genMut.mutate()} disabled={genMut.isPending}>
+            <Button onClick={() => genMut.mutate()} disabled={genMut.isPending || !!refError || !ctx?.business.id}>
               <Sparkles className="h-4 w-4 mr-2" /> {genMut.isPending ? "Generating…" : "Generate & submit report"}
             </Button>
+            <p className="text-xs text-muted-foreground mt-2">Aggregates sales, expenses, and M-Pesa uploads for the selected period, then posts to your n8n webhook.</p>
           </div>
         </div>
       </Card>

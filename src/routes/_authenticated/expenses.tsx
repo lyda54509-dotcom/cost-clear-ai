@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatKES, todayISO } from "@/lib/format";
+import { expenseSchema, firstZodMessage } from "@/lib/validation";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 
@@ -30,6 +31,7 @@ function ExpensesPage() {
   const [date, setDate] = useState(todayISO());
   const [recurring, setRecurring] = useState(false);
   const [notes, setNotes] = useState("");
+  const [fieldError, setFieldError] = useState<string | null>(null);
 
   const list = useQuery({
     queryKey: ["expenses-list", ctx?.business.id],
@@ -43,22 +45,37 @@ function ExpensesPage() {
 
   const add = useMutation({
     mutationFn: async () => {
+      const parsed = expenseSchema.safeParse({
+        category,
+        amount: Number(amount),
+        expense_date: date,
+        notes: notes || undefined,
+      });
+      if (!parsed.success) throw new Error(firstZodMessage(parsed.error));
+      const d = new Date(parsed.data.expense_date + "T00:00:00Z").getTime();
+      if (d > Date.now() + 24 * 3600 * 1000) throw new Error("Date cannot be in the future");
+
       const { data: userData } = await supabase.auth.getUser();
-      if (!amount || Number(amount) <= 0) throw new Error("Enter an amount");
       const { error } = await supabase.from("expenses").insert({
         business_id: ctx!.business.id,
-        category, amount: Number(amount), expense_date: date, is_recurring: recurring, notes: notes || null,
+        category: parsed.data.category,
+        amount: parsed.data.amount,
+        expense_date: parsed.data.expense_date,
+        is_recurring: recurring,
+        notes: parsed.data.notes ?? null,
         created_by: userData.user!.id,
       });
       if (error) throw error;
+      return parsed.data.amount;
     },
-    onSuccess: () => {
-      toast.success("Expense added");
+    onSuccess: (amt) => {
+      setFieldError(null);
+      toast.success("Expense added", { description: `${formatKES(amt)} recorded under ${category}.` });
       setAmount(""); setNotes("");
       qc.invalidateQueries({ queryKey: ["expenses-list"] });
       qc.invalidateQueries({ queryKey: ["expenses"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => { setFieldError(e.message); toast.error(e.message); },
   });
 
   const del = async (id: string) => {
@@ -85,15 +102,16 @@ function ExpensesPage() {
               <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div><Label>Amount (KES)</Label><Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
-          <div><Label>Date</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-          <div><Label>Notes</Label><Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" /></div>
+          <div><Label>Amount (KES)</Label><Input type="number" min="0" step="0.01" value={amount} aria-invalid={!!fieldError} onChange={(e) => { setAmount(e.target.value); if (fieldError) setFieldError(null); }} /></div>
+          <div><Label>Date</Label><Input type="date" max={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} /></div>
+          <div><Label>Notes</Label><Input value={notes} maxLength={500} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" /></div>
           <div className="flex items-center gap-2 pb-2">
             <Switch checked={recurring} onCheckedChange={setRecurring} id="rec" />
             <Label htmlFor="rec" className="cursor-pointer">Recurring</Label>
           </div>
         </div>
-        <div className="mt-4"><Button onClick={() => add.mutate()} disabled={add.isPending}>Add expense</Button></div>
+        {fieldError && <p className="text-xs text-destructive mt-2">{fieldError}</p>}
+        <div className="mt-4"><Button onClick={() => add.mutate()} disabled={add.isPending || !amount}>{add.isPending ? "Saving…" : "Add expense"}</Button></div>
       </Card>
 
       <Card className="p-6">

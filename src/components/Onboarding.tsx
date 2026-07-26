@@ -7,15 +7,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { TrendingUp } from "lucide-react";
+import { businessNameSchema, firstZodMessage } from "@/lib/validation";
 
 export function Onboarding() {
   const qc = useQueryClient();
   const [name, setName] = useState("");
 
+  const [error, setError] = useState<string | null>(null);
+
   const create = useMutation({
     mutationFn: async () => {
-      const trimmed = name.trim();
-      if (!trimmed) throw new Error("Please enter a business name");
+      const parsed = businessNameSchema.safeParse(name);
+      if (!parsed.success) throw new Error(firstZodMessage(parsed.error));
+      const trimmed = parsed.data;
 
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr) throw userErr;
@@ -37,10 +41,14 @@ export function Onboarding() {
       return biz.id;
     },
     onSuccess: () => {
-      toast.success("Business created");
+      setError(null);
+      toast.success("Business created", { description: "Welcome aboard — let's start tracking profit." });
       qc.invalidateQueries({ queryKey: ["business-context"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      setError(e.message);
+      toast.error(e.message);
+    },
   });
 
   return (
@@ -57,16 +65,25 @@ export function Onboarding() {
         </div>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Business name</Label>
+            <Label htmlFor="biz-name">Business name</Label>
             <Input
+              id="biz-name"
               autoFocus
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setName(e.target.value); if (error) setError(null); }}
               placeholder="Mama Njeri Kitchen"
+              maxLength={80}
+              aria-invalid={!!error}
+              aria-describedby={error ? "biz-name-error" : "biz-name-hint"}
               onKeyDown={(e) => { if (e.key === "Enter") create.mutate(); }}
             />
+            {error ? (
+              <p id="biz-name-error" className="text-xs text-destructive">{error}</p>
+            ) : (
+              <p id="biz-name-hint" className="text-xs text-muted-foreground">2–80 characters. Letters, numbers, spaces, and . , ' & ( ) - allowed.</p>
+            )}
           </div>
-          <Button className="w-full" onClick={() => create.mutate()} disabled={create.isPending}>
+          <Button className="w-full" onClick={() => create.mutate()} disabled={create.isPending || !name.trim()}>
             {create.isPending ? "Creating…" : "Create business"}
           </Button>
         </div>
