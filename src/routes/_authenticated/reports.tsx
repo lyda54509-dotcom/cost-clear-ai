@@ -13,8 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { formatKES, formatPct, todayISO } from "@/lib/format";
 import { generateReport } from "@/lib/reports.functions";
+import { reportInputSchema, firstZodMessage } from "@/lib/validation";
 import { toast } from "sonner";
-import { Sparkles, Send, CheckCircle2 } from "lucide-react";
+import { Sparkles, Send, CheckCircle2, AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({ meta: [{ title: "Reports · ProfitTrack" }, { name: "description", content: "Generate AI-powered daily, monthly, or annual profit reports." }] }),
