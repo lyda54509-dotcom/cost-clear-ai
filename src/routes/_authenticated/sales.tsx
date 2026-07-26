@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatKES, todayISO, formatPct } from "@/lib/format";
+import { saleRowSchema, firstZodMessage } from "@/lib/validation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, AlertCircle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/sales")({
   head: () => ({ meta: [{ title: "Sales entry · ProfitTrack" }, { name: "description", content: "Log items sold with quantity, cost, and selling price." }] }),
