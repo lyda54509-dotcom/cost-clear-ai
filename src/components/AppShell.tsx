@@ -17,10 +17,12 @@ const nav = [
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { data: ctx } = useBusiness();
+  const { data: ctx, isLoading: ctxLoading } = useBusiness();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  if (!ctxLoading && !ctx) return <Onboarding />;
 
   async function signOut() {
     await qc.cancelQueries();
