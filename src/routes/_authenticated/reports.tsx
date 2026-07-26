@@ -40,13 +40,26 @@ function ReportsPage() {
   });
 
   const genMut = useMutation({
-    mutationFn: async () => gen({ data: { businessId: ctx!.business.id, periodType: type, referenceDate: ref } }),
+    mutationFn: async () => {
+      const parsed = reportInputSchema.safeParse({ periodType: type, referenceDate: ref });
+      if (!parsed.success) throw new Error(firstZodMessage(parsed.error));
+      return gen({ data: { businessId: ctx!.business.id, periodType: type, referenceDate: ref } });
+    },
     onSuccess: (r) => {
-      toast.success(r.webhookStatus === "sent" ? "Report generated & sent" : r.webhookStatus === "failed" ? "Report generated (webhook failed)" : "Report generated");
+      const net = r.analysis?.metrics?.net ?? 0;
+      const desc = `Net ${formatKES(net)} · ${formatPct(r.analysis?.metrics?.margin ?? 0)} margin`;
+      if (r.webhookStatus === "sent") toast.success("Report generated & sent", { description: desc });
+      else if (r.webhookStatus === "failed") toast.warning("Report saved, webhook delivery failed", { description: "Check the webhook URL in Settings." });
+      else toast.success("Report generated", { description: desc });
       qc.invalidateQueries({ queryKey: ["reports"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error("Could not generate report", { description: e.message }),
   });
+
+  const refError = (() => {
+    const p = reportInputSchema.safeParse({ periodType: type, referenceDate: ref });
+    return p.success ? null : firstZodMessage(p.error);
+  })();
 
   return (
     <AppShell>
