@@ -65,16 +65,25 @@ export function Onboarding() {
         </div>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Business name</Label>
+            <Label htmlFor="biz-name">Business name</Label>
             <Input
+              id="biz-name"
               autoFocus
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setName(e.target.value); if (error) setError(null); }}
               placeholder="Mama Njeri Kitchen"
+              maxLength={80}
+              aria-invalid={!!error}
+              aria-describedby={error ? "biz-name-error" : "biz-name-hint"}
               onKeyDown={(e) => { if (e.key === "Enter") create.mutate(); }}
             />
+            {error ? (
+              <p id="biz-name-error" className="text-xs text-destructive">{error}</p>
+            ) : (
+              <p id="biz-name-hint" className="text-xs text-muted-foreground">2–80 characters. Letters, numbers, spaces, and . , ' & ( ) - allowed.</p>
+            )}
           </div>
-          <Button className="w-full" onClick={() => create.mutate()} disabled={create.isPending}>
+          <Button className="w-full" onClick={() => create.mutate()} disabled={create.isPending || !name.trim()}>
             {create.isPending ? "Creating…" : "Create business"}
           </Button>
         </div>
