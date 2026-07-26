@@ -13,10 +13,13 @@ export function Onboarding() {
   const qc = useQueryClient();
   const [name, setName] = useState("");
 
+  const [error, setError] = useState<string | null>(null);
+
   const create = useMutation({
     mutationFn: async () => {
-      const trimmed = name.trim();
-      if (!trimmed) throw new Error("Please enter a business name");
+      const parsed = businessNameSchema.safeParse(name);
+      if (!parsed.success) throw new Error(firstZodMessage(parsed.error));
+      const trimmed = parsed.data;
 
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr) throw userErr;
@@ -38,10 +41,14 @@ export function Onboarding() {
       return biz.id;
     },
     onSuccess: () => {
-      toast.success("Business created");
+      setError(null);
+      toast.success("Business created", { description: "Welcome aboard — let's start tracking profit." });
       qc.invalidateQueries({ queryKey: ["business-context"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      setError(e.message);
+      toast.error(e.message);
+    },
   });
 
   return (
