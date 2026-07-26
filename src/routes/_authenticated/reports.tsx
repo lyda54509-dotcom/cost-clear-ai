@@ -79,11 +79,16 @@ function ReportsPage() {
               </SelectContent>
             </Select>
           </div>
-          <div><Label>Reference date</Label><Input type="date" value={ref} onChange={(e) => setRef(e.target.value)} /></div>
+          <div>
+            <Label>Reference date</Label>
+            <Input type="date" max={todayISO()} value={ref} aria-invalid={!!refError} onChange={(e) => setRef(e.target.value)} />
+            {refError && <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {refError}</p>}
+          </div>
           <div className="md:col-span-2">
-            <Button onClick={() => genMut.mutate()} disabled={genMut.isPending}>
+            <Button onClick={() => genMut.mutate()} disabled={genMut.isPending || !!refError || !ctx?.business.id}>
               <Sparkles className="h-4 w-4 mr-2" /> {genMut.isPending ? "Generating…" : "Generate & submit report"}
             </Button>
+            <p className="text-xs text-muted-foreground mt-2">Aggregates sales, expenses, and M-Pesa uploads for the selected period, then posts to your n8n webhook.</p>
           </div>
         </div>
       </Card>
