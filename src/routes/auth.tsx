@@ -48,7 +48,7 @@ function AuthPage() {
   async function signUp() {
     if (!email || !password) return toast.error("Email and password required");
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -58,6 +58,10 @@ function AuthPage() {
     });
     setLoading(false);
     if (error) return toast.error(error.message);
+    if (!data.session) {
+      // Email confirmation required — no active session yet.
+      return toast.info("Check your email to confirm your account, then sign in.");
+    }
     toast.success("Account created. You're signed in.");
     navigate({ to: "/dashboard", replace: true });
   }
