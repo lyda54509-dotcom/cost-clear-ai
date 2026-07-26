@@ -26,6 +26,7 @@ function SalesPage() {
   const qc = useQueryClient();
   const [date, setDate] = useState(todayISO());
   const [rows, setRows] = useState<Row[]>([emptyRow()]);
+  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
   const list = useQuery({
     queryKey: ["sales-today", ctx?.business.id, date],
@@ -42,27 +43,69 @@ function SalesPage() {
     },
   });
 
+  const validateDate = (d: string): string | null => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return "Pick a valid date";
+    const t = new Date(d + "T00:00:00Z").getTime();
+    if (Number.isNaN(t)) return "Pick a valid date";
+    if (t > Date.now() + 24 * 3600 * 1000) return "Date cannot be in the future";
+    return null;
+  };
+
   const insertMut = useMutation({
     mutationFn: async () => {
+      const dateErr = validateDate(date);
+      if (dateErr) throw new Error(dateErr);
+
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user!.id;
-      const valid = rows
-        .map((r) => ({
-          business_id: ctx!.business.id,
-          item_name: r.item_name.trim(),
+
+      // Ignore fully empty rows (item name blank AND no prices) so users can leave a trailing row.
+      const nonEmpty = rows
+        .map((r, idx) => ({ r, idx }))
+        .filter(({ r }) => r.item_name.trim() || r.buying_price || r.selling_price);
+      if (!nonEmpty.length) throw new Error("Add at least one item before saving");
+
+      const errors: Record<number, string> = {};
+      const valid: Array<{
+        business_id: string; item_name: string; quantity: number;
+        buying_price: number; selling_price: number; entry_date: string; entered_by: string;
+      }> = [];
+      for (const { r, idx } of nonEmpty) {
+        const parsed = saleRowSchema.safeParse({
+          item_name: r.item_name,
           quantity: Number(r.quantity),
           buying_price: Number(r.buying_price),
           selling_price: Number(r.selling_price),
+        });
+        if (!parsed.success) {
+          errors[idx] = firstZodMessage(parsed.error);
+          continue;
+        }
+        valid.push({
+          business_id: ctx!.business.id,
+          item_name: parsed.data.item_name,
+          quantity: parsed.data.quantity,
+          buying_price: parsed.data.buying_price,
+          selling_price: parsed.data.selling_price,
           entry_date: date,
           entered_by: uid,
-        }))
-        .filter((r) => r.item_name && r.quantity > 0 && r.selling_price >= 0);
-      if (!valid.length) throw new Error("Add at least one valid item");
+        });
+      }
+      setRowErrors(errors);
+      if (Object.keys(errors).length) {
+        throw new Error(`Fix ${Object.keys(errors).length} row${Object.keys(errors).length > 1 ? "s" : ""} before saving`);
+      }
+
+      const lossRows = valid.filter((v) => v.selling_price < v.buying_price);
       const { error } = await supabase.from("sales_entries").insert(valid);
       if (error) throw error;
+      return { count: valid.length, losses: lossRows.length };
     },
-    onSuccess: () => {
-      toast.success("Sales logged");
+    onSuccess: (r) => {
+      setRowErrors({});
+      toast.success(`${r.count} sale${r.count > 1 ? "s" : ""} logged`, {
+        description: r.losses > 0 ? `${r.losses} item${r.losses > 1 ? "s" : ""} sold below cost — double-check pricing.` : "Profit updated on your dashboard.",
+      });
       setRows([emptyRow()]);
       qc.invalidateQueries({ queryKey: ["sales-today"] });
       qc.invalidateQueries({ queryKey: ["sales"] });
