@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useBusiness } from "@/hooks/useBusiness";
 import { Onboarding } from "@/components/Onboarding";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQueryClient } from "@tanstack/react-query";
 
 const nav = [
@@ -17,10 +18,28 @@ const nav = [
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { data: ctx, isLoading: ctxLoading } = useBusiness();
+  const { data: ctx, error: ctxError, isError: ctxIsError, isLoading: ctxLoading } = useBusiness();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  if (ctxIsError) {
+    return (
+      <div className="min-h-screen bg-background p-4 md:p-8">
+        <div className="mx-auto max-w-xl">
+          <Alert variant="destructive">
+            <AlertTitle>Business setup could not load</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>{ctxError instanceof Error ? ctxError.message : "Please try again."}</p>
+              <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["business-context"] })}>
+                Try again
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
 
   if (!ctxLoading && !ctx) return <Onboarding />;
 
