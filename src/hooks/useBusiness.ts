@@ -9,22 +9,31 @@ export type BusinessContext = {
 export function useBusiness() {
   return useQuery<BusinessContext | null>({
     queryKey: ["business-context"],
+    retry: 1,
     queryFn: async () => {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
       const uid = userData.user?.id;
       if (!uid) return null;
       const { data: member, error } = await supabase
         .from("business_members")
-        .select("role, business_id, businesses:business_id(id,name,owner_id,webhook_url)")
+        .select("role, business_id")
         .eq("user_id", uid)
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      if (!member || !member.businesses) return null;
-      // businesses may come back as array in some typings — normalize
-      const biz = Array.isArray(member.businesses) ? member.businesses[0] : member.businesses;
-      return { business: biz as BusinessContext["business"], role: member.role as BusinessContext["role"] };
+      if (!member) return null;
+
+      const { data: business, error: businessError } = await supabase
+        .from("businesses")
+        .select("id,name,owner_id,webhook_url")
+        .eq("id", member.business_id)
+        .maybeSingle();
+      if (businessError) throw businessError;
+      if (!business) return null;
+
+      return { business: business as BusinessContext["business"], role: member.role as BusinessContext["role"] };
     },
   });
 }
