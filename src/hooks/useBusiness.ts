@@ -2,7 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type BusinessContext = {
-  business: { id: string; name: string; owner_id: string; webhook_url: string | null };
+  business: {
+    id: string;
+    name: string;
+    owner_id: string;
+    webhook_url: string | null;
+    recipient_email: string | null;
+    recipient_whatsapp: string | null;
+  };
   role: "owner" | "manager" | "staff";
 };
 
@@ -27,7 +34,7 @@ export function useBusiness() {
 
       const { data: business, error: businessError } = await supabase
         .from("businesses")
-        .select("id,name,owner_id,webhook_url")
+        .select("id,name,owner_id,webhook_url,recipient_email,recipient_whatsapp")
         .eq("id", member.business_id)
         .maybeSingle();
       if (businessError) throw businessError;
