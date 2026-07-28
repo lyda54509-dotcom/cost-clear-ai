@@ -2,7 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type BusinessContext = {
-  business: { id: string; name: string; owner_id: string; webhook_url: string | null };
+  business: {
+    id: string;
+    name: string;
+    owner_id: string;
+    webhook_url: string | null;
+    recipient_email: string | null;
+    recipient_whatsapp: string | null;
+  };
   role: "owner" | "manager" | "staff";
 };
 
