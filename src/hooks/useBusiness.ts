@@ -34,7 +34,7 @@ export function useBusiness() {
 
       const { data: business, error: businessError } = await supabase
         .from("businesses")
-        .select("id,name,owner_id,webhook_url")
+        .select("id,name,owner_id,webhook_url,recipient_email,recipient_whatsapp")
         .eq("id", member.business_id)
         .maybeSingle();
       if (businessError) throw businessError;
