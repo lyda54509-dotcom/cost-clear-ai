@@ -157,22 +157,35 @@ export const generateReport = createServerFn({ method: "POST" })
     // The user-configured URL is validated to prevent SSRF into internal networks.
     const safeCustom = biz?.webhook_url && (await isSafePublicHttpsUrl(biz.webhook_url)) ? biz.webhook_url : null;
     const targets = [N8N_WEBHOOK_URL, ...(safeCustom ? [safeCustom] : [])];
+    const n8nToken = process.env.N8N_WEBHOOK_TOKEN;
     let webhookStatus: "sent" | "skipped" | "failed" = "skipped";
+    let webhookError: string | null = null;
     for (const url of targets) {
       try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (url === N8N_WEBHOOK_URL && n8nToken) headers["Authorization"] = n8nToken;
         const r = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify(payload),
           redirect: "error",
         });
         webhookStatus = r.ok ? "sent" : "failed";
+        if (!r.ok) {
+          const body = await r.text().catch(() => "");
+          webhookError = `${url} responded ${r.status}: ${body.slice(0, 200)}`;
+          console.error("[generateReport] webhook failed", webhookError);
+        }
         if (r.ok && url === N8N_WEBHOOK_URL) {
           await context.supabase.from("reports").update({ sent_at: new Date().toISOString() }).eq("id", inserted.id);
         }
-      } catch { webhookStatus = "failed"; }
+      } catch (e) {
+        webhookStatus = "failed";
+        webhookError = `${url}: ${e instanceof Error ? e.message : "request failed"}`;
+        console.error("[generateReport] webhook error", webhookError);
+      }
     }
 
 
-    return { report: inserted, analysis, webhookStatus };
+    return { report: inserted, analysis, webhookStatus, webhookError };
   });
