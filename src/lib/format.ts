@@ -16,3 +16,14 @@ export function formatPct(value: number | null | undefined, digits = 1): string 
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+/** Canonical key for grouping item names (case/spacing insensitive). */
+export function itemKey(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Display form for a grouped item name: "chips" -> "Chips". */
+export function itemLabel(name: string): string {
+  const t = name.trim().replace(/\s+/g, " ");
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
