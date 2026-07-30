@@ -49,7 +49,7 @@ function ReportsPage() {
       const net = r.analysis?.metrics?.net ?? 0;
       const desc = `Net ${formatKES(net)} · ${formatPct(r.analysis?.metrics?.margin ?? 0)} margin`;
       if (r.webhookStatus === "sent") toast.success("Report generated & sent", { description: desc });
-      else if (r.webhookStatus === "failed") toast.warning("Report saved, webhook delivery failed", { description: "Check the webhook URL in Settings." });
+      else if (r.webhookStatus === "failed") toast.warning("Report saved, but delivery failed", { description: r.webhookError ?? "The n8n workflow rejected the request." });
       else toast.success("Report generated", { description: desc });
       qc.invalidateQueries({ queryKey: ["reports"] });
     },
