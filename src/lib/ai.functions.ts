@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { itemKey, itemLabel } from "./format";
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-3-flash-preview";
@@ -103,15 +104,16 @@ export const analyzePeriod = createServerFn({ method: "POST" })
     const margin = revenue > 0 ? (net / revenue) * 100 : 0;
 
     // Item aggregation
-    const items = new Map<string, { qty: number; revenue: number; cogs: number }>();
+    const items = new Map<string, { label: string; qty: number; revenue: number; cogs: number }>();
     for (const s of sales) {
-      const cur = items.get(s.item_name) ?? { qty: 0, revenue: 0, cogs: 0 };
+      const key = itemKey(s.item_name);
+      const cur = items.get(key) ?? { label: itemLabel(s.item_name), qty: 0, revenue: 0, cogs: 0 };
       cur.qty += Number(s.quantity);
       cur.revenue += Number(s.quantity) * Number(s.selling_price);
       cur.cogs += Number(s.quantity) * Number(s.buying_price);
-      items.set(s.item_name, cur);
+      items.set(key, cur);
     }
-    const itemStats = [...items.entries()].map(([name, v]) => ({ name, qty: v.qty, revenue: v.revenue, profit: v.revenue - v.cogs, margin: v.revenue > 0 ? ((v.revenue - v.cogs) / v.revenue) * 100 : 0 }));
+    const itemStats = [...items.values()].map((v) => ({ name: v.label, qty: v.qty, revenue: v.revenue, profit: v.revenue - v.cogs, margin: v.revenue > 0 ? ((v.revenue - v.cogs) / v.revenue) * 100 : 0 }));
     const top = [...itemStats].sort((a, b) => b.profit - a.profit).slice(0, 3);
     const worst = [...itemStats].sort((a, b) => a.margin - b.margin).slice(0, 3);
 

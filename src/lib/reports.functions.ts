@@ -104,7 +104,7 @@ export const generateReport = createServerFn({ method: "POST" })
       context.supabase.from("businesses").select("name, recipient_email, recipient_whatsapp, webhook_url").eq("id", data.businessId).maybeSingle(),
       context.supabase.from("sales_entries").select("item_name, quantity, buying_price, selling_price, entry_date").eq("business_id", data.businessId).gte("entry_date", start).lte("entry_date", end),
       context.supabase.from("expenses").select("category, amount, expense_date").eq("business_id", data.businessId).gte("expense_date", start).lte("expense_date", end),
-      context.supabase.from("uploads").select("extracted_data, upload_date, upload_type").eq("business_id", data.businessId).gte("upload_date", start).lte("upload_date", end).eq("upload_type", "mpesa_statement"),
+      context.supabase.from("uploads").select("extracted_data, upload_date, upload_type").eq("business_id", data.businessId).gte("upload_date", start).lte("upload_date", end),
     ]);
 
     const biz = bizR.data;
