@@ -71,16 +71,26 @@ function DashboardPage() {
     days.push({ date: iso.slice(5), net: Math.round(b.net), gross: Math.round(b.gross) });
   }
 
-  // Item breakdown
-  const items = new Map<string, { qty: number; revenue: number; cogs: number }>();
+  // Item breakdown — grouped case-insensitively so "chips" and "Chips" are one item
+  const items = new Map<string, { label: string; qty: number; revenue: number; cogs: number }>();
   for (const s of sales) {
-    const cur = items.get(s.item_name) ?? { qty: 0, revenue: 0, cogs: 0 };
+    const key = itemKey(s.item_name);
+    const cur = items.get(key) ?? { label: itemLabel(s.item_name), qty: 0, revenue: 0, cogs: 0 };
     cur.qty += Number(s.quantity);
     cur.revenue += Number(s.quantity) * Number(s.selling_price);
     cur.cogs += Number(s.quantity) * Number(s.buying_price);
-    items.set(s.item_name, cur);
+    items.set(key, cur);
   }
-  const itemRows = [...items.entries()].map(([name, v]) => ({ name, ...v, margin: v.revenue > 0 ? ((v.revenue - v.cogs) / v.revenue) * 100 : 0 })).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+  const itemRows = [...items.values()].map((v) => ({ name: v.label, qty: v.qty, revenue: v.revenue, cogs: v.cogs, margin: v.revenue > 0 ? ((v.revenue - v.cogs) / v.revenue) * 100 : 0 })).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+
+  // Receipts / M-Pesa reconciliation
+  const uploads = uploadsQ.data ?? [];
+  const uploadTotal = (period: (d: string) => boolean) =>
+    uploads.filter((u) => period(u.upload_date)).reduce((a, u) => a + (Number(u.extracted_data?.total_amount) || 0), 0);
+  const captureToday = uploadTotal((d) => d === today);
+  const captureMonth = uploadTotal((d) => d.startsWith(month));
+  const diffMonth = captureMonth - mtd.revenue;
+  const mismatch = captureMonth > 0 && Math.abs(diffMonth) > Math.max(1, captureMonth * 0.1);
 
   return (
     <AppShell>
@@ -94,6 +104,34 @@ function DashboardPage() {
         <StatCard label="This month" gross={mtd.gross} net={mtd.net} margin={mtd.margin} revenue={mtd.revenue} />
         <StatCard label="This year" gross={ytd.gross} net={ytd.net} margin={ytd.margin} revenue={ytd.revenue} />
       </div>
+
+      <Card className="p-6 mb-6">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div>
+            <h2 className="font-semibold">Receipts &amp; M-Pesa reconciliation</h2>
+            <p className="text-xs text-muted-foreground">Uploaded totals vs sales you logged</p>
+          </div>
+          <Link to="/uploads" className="text-xs text-accent inline-flex items-center gap-1">Uploads <ArrowRight className="h-3 w-3" /></Link>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div><div className="text-xs text-muted-foreground">Uploaded today</div><div className="tabular-nums font-medium">{formatKES(captureToday)}</div></div>
+          <div><div className="text-xs text-muted-foreground">Sales logged today</div><div className="tabular-nums font-medium">{formatKES(day.revenue)}</div></div>
+          <div><div className="text-xs text-muted-foreground">Uploaded this month</div><div className="tabular-nums font-medium">{formatKES(captureMonth)}</div></div>
+          <div>
+            <div className="text-xs text-muted-foreground">Month difference</div>
+            <div className={`tabular-nums font-medium ${mismatch ? "text-warning" : "text-success"}`}>{formatKES(diffMonth)}</div>
+          </div>
+        </div>
+        {mismatch && (
+          <p className="text-xs text-warning mt-3">
+            {diffMonth > 0
+              ? "Your uploaded receipts total more than the sales entered — some sales are probably missing from Sales."
+              : "You've logged more sales than your uploaded receipts show — check for duplicate or over-stated entries."}
+          </p>
+        )}
+        {uploads.length === 0 && <p className="text-xs text-muted-foreground mt-3">No receipts uploaded yet, so nothing to reconcile.</p>}
+      </Card>
+
 
       <Card className="p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
