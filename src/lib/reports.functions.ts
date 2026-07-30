@@ -104,7 +104,7 @@ export const generateReport = createServerFn({ method: "POST" })
       context.supabase.from("businesses").select("name, recipient_email, recipient_whatsapp, webhook_url").eq("id", data.businessId).maybeSingle(),
       context.supabase.from("sales_entries").select("item_name, quantity, buying_price, selling_price, entry_date").eq("business_id", data.businessId).gte("entry_date", start).lte("entry_date", end),
       context.supabase.from("expenses").select("category, amount, expense_date").eq("business_id", data.businessId).gte("expense_date", start).lte("expense_date", end),
-      context.supabase.from("uploads").select("extracted_data, upload_date, upload_type").eq("business_id", data.businessId).gte("upload_date", start).lte("upload_date", end).eq("upload_type", "mpesa_statement"),
+      context.supabase.from("uploads").select("extracted_data, upload_date, upload_type").eq("business_id", data.businessId).gte("upload_date", start).lte("upload_date", end),
     ]);
 
     const biz = bizR.data;
@@ -120,16 +120,20 @@ export const generateReport = createServerFn({ method: "POST" })
       amount: Number(e.amount),
       date: e.expense_date,
     }));
-    const mpesa_statement: Array<{ ref: string | null; amount: number; date: string; counterparty: string | null }> = [];
+    const mpesa_statement: Array<{ ref: string | null; amount: number; date: string; counterparty: string | null; source: string }> = [];
     for (const u of upR.data ?? []) {
       const ed = u.extracted_data as { transactions?: MpesaTx[] } | null;
       const txs = ed?.transactions ?? [];
       for (const t of txs) {
+        const desc = t.description ?? null;
+        const refMatch = desc?.match(/\(([A-Z0-9]{6,})\)/) ?? desc?.match(/\b([A-Z]{3}[A-Z0-9]{5,})\b/);
+        const counterparty = t.counterparty ?? (desc ? desc.replace(/\s*\([^)]*\)\s*$/, "").trim() : null);
         mpesa_statement.push({
-          ref: t.ref ?? null,
+          ref: t.ref ?? refMatch?.[1] ?? null,
           amount: Number(t.amount) || 0,
           date: t.date ?? u.upload_date,
-          counterparty: t.counterparty ?? t.description ?? null,
+          counterparty: counterparty || null,
+          source: (u.upload_type as string) ?? "receipt",
         });
       }
     }
