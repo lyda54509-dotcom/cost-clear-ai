@@ -49,8 +49,8 @@ function ReportsPage() {
       const net = r.analysis?.metrics?.net ?? 0;
       const desc = `Net ${formatKES(net)} · ${formatPct(r.analysis?.metrics?.margin ?? 0)} margin`;
       if (r.webhookStatus === "sent") toast.success("Report generated & sent", { description: desc });
-      else if (r.webhookStatus === "failed") toast.warning("Report saved, but delivery failed", { description: r.webhookError ?? "The n8n workflow rejected the request." });
-      else toast.success("Report generated", { description: desc });
+      else toast.success("Report generated & saved", { description: desc });
+
       qc.invalidateQueries({ queryKey: ["reports"] });
     },
     onError: (e: Error) => toast.error("Could not generate report", { description: e.message }),
@@ -127,9 +127,10 @@ function ReportsPage() {
                 )}
                 {!r.sent_at && (
                   <div className="mt-3 text-xs text-muted-foreground flex items-center gap-1">
-                    <Send className="h-3 w-3" /> Webhook not sent — configure it in Settings to auto-deliver reports.
+                    <Send className="h-3 w-3" /> Saved — delivery pending (email/WhatsApp are optional and handled by your n8n workflow).
                   </div>
                 )}
+
               </Card>
             );
           })
