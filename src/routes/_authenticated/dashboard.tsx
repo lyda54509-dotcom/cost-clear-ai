@@ -168,7 +168,8 @@ function DashboardPage() {
       </Card>
 
       <Card className="p-6">
-        <h2 className="font-semibold mb-4">Item performance</h2>
+        <h2 className="font-semibold">Item performance</h2>
+        <p className="text-xs text-muted-foreground mb-4">Gross margin per item (revenue − cost price), grouped by item name</p>
         {itemRows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No sales logged yet. <Link to="/sales" className="text-accent underline">Add your first entry</Link>.</p>
         ) : (
@@ -180,7 +181,7 @@ function DashboardPage() {
                   <th className="text-right py-2">Qty</th>
                   <th className="text-right py-2">Revenue</th>
                   <th className="text-right py-2">COGS</th>
-                  <th className="text-right py-2">Margin</th>
+                  <th className="text-right py-2">Gross margin</th>
                 </tr>
               </thead>
               <tbody>
@@ -215,7 +216,7 @@ function StatCard({ label, gross, net, margin, revenue }: { label: string; gross
       <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
         <div><div className="text-muted-foreground">Revenue</div><div className="tabular-nums font-medium">{formatKES(revenue)}</div></div>
         <div><div className="text-muted-foreground">Gross</div><div className="tabular-nums font-medium">{formatKES(gross)}</div></div>
-        <div><div className="text-muted-foreground">Margin</div><div className="tabular-nums font-medium">{formatPct(margin)}</div></div>
+        <div><div className="text-muted-foreground">Net margin</div><div className="tabular-nums font-medium">{formatPct(margin)}</div></div>
       </div>
     </Card>
   );
