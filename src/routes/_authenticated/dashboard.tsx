@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useBusiness } from "@/hooks/useBusiness";
 import { AppShell } from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
-import { formatKES, formatPct } from "@/lib/format";
+import { formatKES, formatPct, itemKey, itemLabel } from "@/lib/format";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -16,6 +16,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 
 type Sale = { entry_date: string; quantity: number; buying_price: number; selling_price: number; item_name: string };
 type Expense = { expense_date: string; amount: number };
+type Upload = { upload_date: string; extracted_data: { total_amount?: number } | null };
 
 function DashboardPage() {
   const { data: ctx } = useBusiness();
