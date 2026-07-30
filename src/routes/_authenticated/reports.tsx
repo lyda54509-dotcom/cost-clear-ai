@@ -127,9 +127,10 @@ function ReportsPage() {
                 )}
                 {!r.sent_at && (
                   <div className="mt-3 text-xs text-muted-foreground flex items-center gap-1">
-                    <Send className="h-3 w-3" /> Webhook not sent — configure it in Settings to auto-deliver reports.
+                    <Send className="h-3 w-3" /> Saved — delivery pending (email/WhatsApp are optional and handled by your n8n workflow).
                   </div>
                 )}
+
               </Card>
             );
           })

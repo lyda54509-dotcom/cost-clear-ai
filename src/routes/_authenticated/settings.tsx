@@ -78,13 +78,15 @@ function SettingsPage() {
             <p className="text-xs text-muted-foreground mt-1">If set, reports are also POSTed here in addition to the n8n workflow.</p>
           </div>
           <div>
-            <Label>Recipient email</Label>
+            <Label>Recipient email <span className="text-muted-foreground font-normal">(optional)</span></Label>
             <Input type="email" placeholder="owner@business.co.ke" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} disabled={!isAdmin} />
           </div>
           <div>
-            <Label>Recipient WhatsApp</Label>
+            <Label>Recipient WhatsApp <span className="text-muted-foreground font-normal">(optional)</span></Label>
             <Input placeholder="+2547XXXXXXXX" value={recipientWhatsapp} onChange={(e) => setRecipientWhatsapp(e.target.value)} disabled={!isAdmin} />
+            <p className="text-xs text-muted-foreground mt-1">Leave blank to skip WhatsApp — reports still generate and save normally.</p>
           </div>
+
         </div>
         {isAdmin && <Button className="mt-4" onClick={() => saveBiz.mutate()} disabled={saveBiz.isPending}>Save</Button>}
       </Card>
