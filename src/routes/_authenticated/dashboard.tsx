@@ -40,6 +40,17 @@ function DashboardPage() {
       return data as Expense[];
     },
   });
+  const uploadsQ = useQuery({
+    queryKey: ["uploads-recon", businessId],
+    enabled: !!businessId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("uploads").select("upload_date, extracted_data").eq("business_id", businessId!).limit(1000);
+      if (error) throw error;
+      return (data ?? []) as unknown as Upload[];
+    },
+  });
+
+
 
   const today = new Date().toISOString().slice(0, 10);
   const month = today.slice(0, 7);
